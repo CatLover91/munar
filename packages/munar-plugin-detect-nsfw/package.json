@@ -1,0 +1,18 @@
+{
+  "name": "munar-plugin-detect-nsfw",
+  "version": "1.0.0"
+  "description": "Munar plugin that informs if an image could be NSFW",
+  "main": "lib/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specifird\" && exit 1"
+  },
+  "keywords": [
+    "munar-plugin"
+  ],
+  "author": "Nicholai Goodall <kranoscorp@gmail.com>",
+  "license": "ISC",
+  "peerDependencies": {
+    "munar-core": "^1.0.0",
+    "python-shell": "^0.4.0"
+  }
+}
