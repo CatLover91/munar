@@ -1,15 +1,33 @@
-import { Plugin } from 'munar-core'
+import { Plugin, command, permissions } from 'munar-core'
+import lockskip from 'munar-helper-booth-lockskip'
 import delay from 'delay'
 import moment from 'moment'
 
 const supportsHistory = (adapter) =>
   typeof adapter.getDJHistory === 'function'
-const supportsBoothSkipping = (adapter) =>
-  typeof adapter.getDJBooth === 'function' &&
-  typeof adapter.getDJBooth().skip === 'function'
-const supportsBoothLockskipping = (adapter) =>
-  typeof adapter.getDJBooth === 'function' &&
-  typeof adapter.getDJBooth().lockskip === 'function'
+
+const stringId = (user) => {
+  const { adapter, sourceId } = user.compoundId()
+  return `${adapter}:${sourceId}`
+}
+class Exemptions extends Set {
+  add (user) {
+    return super.add(stringId(user))
+  }
+  check (user) {
+    if (this.has(user)) {
+      this.delete(user)
+      return true
+    }
+    return false
+  }
+  has (user) {
+    return super.has(stringId(user))
+  }
+  delete (user) {
+    return super.delete(stringId(user))
+  }
+}
 
 export default class DJHistorySkip extends Plugin {
   static defaultOptions = {
@@ -17,6 +35,7 @@ export default class DJHistorySkip extends Plugin {
     lockskipPosition: 1
   }
 
+  exemptions = new Exemptions()
   lastSkip = Promise.resolve()
 
   enable () {
@@ -27,7 +46,21 @@ export default class DJHistorySkip extends Plugin {
     this.bot.removeListener('djBooth:advance', this.onAdvance)
   }
 
-  onAdvance = (adapter, { next }) => {
+  @command('exempt', {
+    role: permissions.MODERATOR,
+    description: 'Exempt a user from history skip for one turn.',
+    arguments: [ command.arg.user() ]
+  })
+  exempt (message, targetName) {
+    const target = message.source.getUserByName(targetName)
+    if (target) {
+      this.exemptions.add(target)
+      message.reply(`${target.username} will be exempted from history skip on their next turn.`)
+    }
+  }
+
+  onAdvance = (adapter) => {
+    const next = adapter.getDJBooth().getEntry()
     if (supportsHistory(adapter) && next) {
       // Ensure that we only skip the next song once the previous lockskip has
       // completed.
@@ -59,39 +92,27 @@ export default class DJHistorySkip extends Plugin {
     return true
   }
 
-  async lockskip (adapter, position = 1) {
-    const booth = adapter.getDJBooth()
-    const waitlist = adapter.getWaitlist()
-    const dj = await booth.getDJ()
-
-    if (supportsBoothLockskipping(adapter)) {
-      await booth.lockskip({ position })
-    } else {
-      const waitlistLength = (await waitlist.all()).length
-      // Attempt to lockskip manually.
-      await booth.skip()
-      if (waitlistLength > position) {
-        await delay(1000)
-        await waitlist.move(dj.id, position)
-      }
-    }
+  isHistoryMatch (a, b) {
+    return this.isSameSong(a.media, b.media) && a.id !== b.id
   }
 
-  async maybeSkip (adapter, media) {
+  async maybeSkip (adapter, current) {
     const history = await adapter.getDJHistory().getRecent(this.options.limit)
-    const lastPlay = history.find((entry) => this.isSameSong(entry.media, media))
+    const dj = await adapter.getDJBooth().getDJ()
+    if (this.exemptions.check(dj)) {
+      return
+    }
+
+    const lastPlay = history.find((entry) => this.isHistoryMatch(entry, current))
     if (lastPlay) {
-      const { username } = await adapter.getDJBooth().getDJ()
       const duration = moment.duration(Date.now() - lastPlay.playedAt, 'milliseconds')
       adapter.send(
-        `@${username} This song was played ${duration.humanize()} ago` +
+        `@${dj.username} This song was played ${duration.humanize()} ago` +
         (lastPlay.user ? ` by ${lastPlay.user.username}` : '') +
         '.'
       )
-      if (supportsBoothSkipping(adapter)) {
-        await delay(500)
-        await this.lockskip(adapter, this.options.position)
-      }
+      await delay(500)
+      await lockskip(adapter, { position: this.options.position })
     }
   }
 }

@@ -1,8 +1,8 @@
 import { Plugin, command, permissions } from 'munar-core'
 import last from 'lodash.last'
-
 import { TriggerModel } from './models'
 import * as vars from './vars'
+import { renderTriggers } from './serve'
 
 export default class Triggers extends Plugin {
   static description = 'Throws text at people.'
@@ -98,7 +98,15 @@ export default class Triggers extends Plugin {
     return tokens
   }
 
-  @command('trigger', { role: permissions.MODERATOR })
+  @command('addtrigger', 'trigger', {
+    role: permissions.MODERATOR,
+    description: 'Define a new trigger.',
+    arguments: [
+      command.arg.string()
+        .regex(/^.\w+$/)
+        .description('The name of the trigger.')
+    ]
+  })
   async createTrigger (message, name, ...response) {
     const Trigger = this.model('Trigger')
     const User = this.model('User')
@@ -118,7 +126,15 @@ export default class Triggers extends Plugin {
     this.add(name, response)
   }
 
-  @command('deltrigger', { role: command.ROLE.BOUNCER })
+  @command('deltrigger', {
+    role: command.ROLE.BOUNCER,
+    description: 'Delete a trigger.',
+    arguments: [
+      command.arg.string()
+        .regex(/^.\w+$/)
+        .description('The name of the trigger.')
+    ]
+  })
   async removeTrigger (message, name) {
     const Trigger = this.model('Trigger')
     name = name.toLowerCase()
@@ -128,5 +144,18 @@ export default class Triggers extends Plugin {
     await Trigger.remove({ _id: name })
     this.removeCommand(name)
     message.reply(`Removed trigger "!${name}"`)
+  }
+
+  async serve () {
+    const Trigger = this.model('Trigger')
+
+    const triggers = await Trigger.find()
+      .sort({ _id: 1 })
+      .lean()
+
+    return renderTriggers({
+      triggers,
+      triggerCharacter: this.bot.options.trigger
+    })
   }
 }

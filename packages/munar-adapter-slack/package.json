@@ -1,6 +1,6 @@
 {
   "name": "munar-adapter-slack",
-  "version": "1.0.2",
+  "version": "1.2.0",
   "description": "Slack.com adapter for Munar",
   "main": "lib/index.js",
   "scripts": {
@@ -14,7 +14,8 @@
   "author": "Renée Kooi <renee@kooi.me>",
   "license": "ISC",
   "dependencies": {
-    "@slack/client": "^3.1.0"
+    "@slack/client": "^3.1.0",
+    "rename-prop": "^1.0.0"
   },
   "peerDependencies": {
     "munar-core": "^1.0.0"

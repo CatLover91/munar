@@ -1,10 +1,6 @@
 {
-  "name": "sekshibot",
-  "description": "Modular plug.dj room bot for WE ♥ KPOP",
-  "version": "0.16.8",
+  "private": true,
   "license": "MIT",
-  "main": "lib/Sekshi",
-  "bin": "bin/sekshibot",
   "author": "Sooyou",
   "contributors": [
     "brookiebeast",
@@ -12,36 +8,38 @@
     "René Kooi <rene@kooi.me>",
     "schrobby"
   ],
-  "homepage": "https://welovekpop.club/sekshibot",
   "engines": {
     "node": ">= 4"
   },
   "devDependencies": {
-    "babel-cli": "^6.7.7",
-    "babel-eslint": "^6.0.3",
-    "babel-plugin-transform-class-properties": "^6.6.0",
-    "babel-plugin-transform-decorators-legacy": "^1.3.4",
-    "babel-plugin-transform-export-extensions": "^6.5.0",
-    "babel-plugin-transform-flow-comments": "^6.7.0",
-    "babel-preset-es2015-node4": "^2.0.3",
-    "babel-preset-stage-2": "^6.5.0",
+    "babel-eslint": "^7.2.3",
+    "babel-jest": "^20.0.3",
     "gulp": "^3.9.1",
     "gulp-babel": "^6.1.2",
     "gulp-newer": "^1.1.0",
     "gulp-plumber": "^1.1.0",
     "gulp-util": "^3.0.7",
     "gulp-watch": "^4.3.5",
-    "standard": "^7.1.0",
+    "jest": "^20.0.4",
+    "lerna": "^2.0.0-rc.5",
+    "standard": "^10.0.2",
     "through2": "^2.0.1"
   },
   "standard": {
     "parser": "babel-eslint"
   },
+  "jest": {
+    "transform": {
+      "\\.js$": "babel-jest"
+    }
+  },
   "scripts": {
+    "prepare": "lerna bootstrap && npm run link && npm run build",
     "link": "ls packages | { while read p ; do [ -L node_modules/$p ] || ln -s ../packages/$p node_modules ; done }",
-    "test": "standard gulpfile.js packages/*/src/**/*.js",
+    "lint": "standard gulpfile.js packages/*/src/**/*.js",
+    "jest": "jest packages/*/src",
+    "test": "npm run jest && npm run lint",
     "watch": "gulp watch",
-    "build": "gulp",
-    "prepublish": "npm run build"
+    "build": "gulp"
   }
 }

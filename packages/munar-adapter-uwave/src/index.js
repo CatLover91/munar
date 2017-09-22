@@ -2,7 +2,7 @@ import got from 'got'
 import WebSocket from 'ws'
 import EventEmitter from 'events'
 import { stringify } from 'qs'
-import { Adapter, User } from 'munar-core'
+import { Adapter, User, permissions } from 'munar-core'
 
 const debug = require('debug')('munar:adapter:uwave')
 
@@ -86,8 +86,29 @@ export default class UwaveAdapter extends Adapter {
     return this
   }
 
-  canExecute () {
-    return true
+  canExecute (message, command) {
+    const user = message.user.sourceUser
+    const userRole = user.roles && user.roles.length > 0
+      ? getRoleFromList(user.roles)
+      : getRoleFromId(user.role)
+    const requiredRole = command.role
+
+    debug('canExecute', requiredRole, userRole, user.roles, user.role)
+
+    return userRole >= requiredRole
+
+    function getRoleFromList (list) {
+      if (list.includes('*') || list.includes('admin')) return permissions.ADMIN
+      if (list.includes('moderator')) return permissions.MODERATOR
+      if (list.includes('special')) return permissions.REGULAR
+      return permissions.NONE
+    }
+    function getRoleFromId (id) {
+      if (id >= 4) return permissions.ADMIN
+      if (id >= 2) return permissions.MODERATOR
+      if (id === 1) return permissions.REGULAR
+      return permissions.NONE
+    }
   }
 
   // HTTP API
@@ -96,16 +117,18 @@ export default class UwaveAdapter extends Adapter {
     let url = `${this.apiUrl}/${endpoint}`
     const options = {
       method,
-      query: { token: this.options.token },
+      headers: {
+        authorization: `JWT ${this.options.token}`
+      },
       json: true
     }
     if (method === 'get') {
-      Object.assign(options.query, data)
+      options.query = data
     } else {
-      options.body = JSON.stringify(data)
-      options.headers = {
+      options.body = data
+      Object.assign(options.headers, {
         'content-type': 'application/json'
-      }
+      })
     }
     // For nested query parameters (like page[offset])
     if (options.query) {
@@ -202,6 +225,11 @@ export default class UwaveAdapter extends Adapter {
   }
 
   onSocketMessage = (message) => {
+    // Ignore pings
+    if (message === '-') {
+      return
+    }
+
     let command
     let data
 

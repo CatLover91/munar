@@ -5,10 +5,13 @@ import Promise from 'bluebird'
 const debug = require('debug')('munar:emotes')
 
 import { EmoteModel } from './models'
+import { renderEmotesList } from './serve'
 
 const cleanId = (id) => id.toLowerCase()
 
 const IMGUR = /^https?:\/\/i\.imgur\.com\//
+
+const argEmoteName = command.arg.string().description('Emote Name')
 
 export default class Emotes extends Plugin {
   static description = 'Reaction GIF repository'
@@ -73,7 +76,15 @@ export default class Emotes extends Plugin {
     })
   }
 
-  @command('addemote', { role: permissions.MODERATOR, ninjaVanish: true })
+  @command('addemote', {
+    role: permissions.MODERATOR,
+    ninjaVanish: true,
+    description: 'Add a new emote.',
+    arguments: [
+      argEmoteName.required(),
+      command.arg.string().uri().description('Image URL').required()
+    ]
+  })
   async addemote (message, id, url) {
     const user = message.user
     id = cleanId(id)
@@ -99,7 +110,11 @@ export default class Emotes extends Plugin {
     message.reply(`Emote "${id}" updated!`, 10 * 1000)
   }
 
-  @command('delemote', { role: permissions.MODERATOR })
+  @command('delemote', {
+    role: permissions.MODERATOR,
+    description: 'Remove an emote.',
+    arguments: [ argEmoteName.required() ]
+  })
   async delemote (message, id) {
     debug('delemote', id)
     await this.model('Emote').remove({ _id: id })
@@ -108,27 +123,45 @@ export default class Emotes extends Plugin {
     message.reply(`Emote "${id}" removed!`, 10 * 1000)
   }
 
-  @command('emotes')
+  @command('emotes', {
+    description: 'Show a list of emotes.'
+  })
   async emotes (message) {
     debug('listing emotes')
+    let url
+
+    const server = this.bot.getPlugin('serve')
+    if (server) {
+      url = server.getUrl('emotes')
+    }
     if (this.options.url) {
-      message.reply(`Emotes can be found at ${this.options.url} !`)
+      url = this.options.url
+    }
+
+    if (url) {
+      message.reply(`Emotes can be found at ${url} !`)
       return
     }
-    const emotes = await this.model('Emote').find().sort('id')
+    const emotes = await this.model('Emote')
+      .find()
+      .sort('_id')
     const emoteIds = emotes.map((emote) => emote.id)
     message.reply(`Emotes: ${emoteIds.join(', ')}`)
   }
 
-  @command('emote', 'e')
+  @command('emote', 'e', {
+    description: 'Use an emote.',
+    arguments: [
+      argEmoteName.required(),
+      command.arg.user()
+        .description('User to send the emote to.')
+    ]
+  })
   async emote (message, id, username) {
     if (!id) return
 
     let target
     if (username) {
-      if (username.charAt(0) === '@') {
-        username = username.slice(1)
-      }
       target = message.source.getUserByName(username)
     }
     if (!target) {
@@ -139,5 +172,14 @@ export default class Emotes extends Plugin {
     if (emote) {
       this.sendEmote(message, target, emote.url)
     }
+  }
+
+  async serve (req, res) {
+    res.setHeader('content-type', 'text/html')
+
+    const emotes = await this.model('Emote')
+      .find()
+      .sort('_id')
+    return renderEmotesList(emotes)
   }
 }
